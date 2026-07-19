@@ -1,0 +1,22 @@
+services:
+  meteor-history:
+    image: ghcr.io/mengmengcode/meteor-history:latest
+    build:
+      context: .
+      args:
+        APP_VERSION: local
+        SOURCE_URL: https://github.com/MengMengCode/meteor-history
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      PORT: 8666
+    ports:
+      - "8666:8666"
+    volumes:
+      - meteor-history-cache:/app/.cache
+
+volumes:
+  meteor-history-cache:
+

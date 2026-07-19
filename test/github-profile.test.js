@@ -1,0 +1,45 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { GitHubClient } from '../server/github.js';
+import { calculateRank } from '../server/rank.js';
+
+test('GitHub profile stats map GraphQL user activity data', async () => {
+  const client = new GitHubClient({
+    token: 'test-token',
+    apiVersion: '2022-11-28',
+    fetchImpl: async (url, init) => {
+      assert.equal(url, 'https://api.github.com/graphql');
+      assert.equal(init.method, 'POST');
+      return new Response(JSON.stringify({ data: { user: {
+        name: 'Owner Name',
+        login: 'owner',
+        contributionsCollection: { totalCommitContributions: 101, totalPullRequestReviewContributions: 7 },
+        repositoriesContributedTo: { totalCount: 8 },
+        pullRequests: { totalCount: 9 },
+        openIssues: { totalCount: 4 },
+        closedIssues: { totalCount: 6 },
+        followers: { totalCount: 11 },
+        repositories: {
+          totalCount: 2,
+          nodes: [{ name: 'one', stargazers: { totalCount: 12 } }, { name: 'two', stargazers: { totalCount: 3 } }],
+          pageInfo: { hasNextPage: false, endCursor: null },
+        },
+      } } }), { status: 200, headers: { 'content-type': 'application/json' } });
+    },
+  });
+
+  const stats = await client.fetchProfileStats('owner');
+  assert.equal(stats.name, 'Owner Name');
+  assert.equal(stats.totalStars, 15);
+  assert.equal(stats.totalCommits, 101);
+  assert.equal(stats.totalPRs, 9);
+  assert.equal(stats.totalIssues, 10);
+  assert.equal(stats.totalReviews, 7);
+  assert.equal(stats.contributedTo, 8);
+  assert.match(stats.rank.level, /^(?:S|A\+?|A-|B\+?|B-|C\+?|C)$/);
+});
+
+test('rank grading keeps GitHub Readme Stats semantics', () => {
+  assert.deepEqual(calculateRank({ commits: 0, prs: 0, issues: 0, reviews: 0, stars: 0, followers: 0 }), { level: 'C', percentile: 100 });
+  assert.equal(calculateRank({ commits: 10000, prs: 1000, issues: 1000, reviews: 100, stars: 10000, followers: 10000 }).level, 'S');
+});
