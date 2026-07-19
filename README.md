@@ -27,6 +27,9 @@
 
 Meteor History is a self-hosted GitHub repository gallery and SVG card service. It synchronizes repository and profile data on a schedule, stores star history as persistent JSON, and provides copyable image URLs and Markdown for project README files.
 
+![text1](image/image-1.png)
+
+
 ## Deployment
 
 ### Docker image
@@ -133,3 +136,8 @@ The GitHub token requires Metadata read access only for repositories that should
 | `/api/history/:owner/:repo` | Cached repository star history and generated share URLs. |
 | `/api/embed/:owner/:repo.svg` | Repository star history SVG image. |
 | `/api/profile/:owner.svg` | GitHub profile statistics SVG image. |
+
+## Preview
+![text2](image/image-2.png)
+![text3](image/image-3.png)
+![text4](image/image-4.png)
