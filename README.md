@@ -43,7 +43,7 @@ The deployment flow creates a Worker, provisions a KV namespace for persistent J
 
 `PUBLIC_BASE_URL` is optional. Leave it empty to generate links from the Worker request origin; image hotlink protection is then forced off. When it is set, `EMBED_HOTLINK_PROTECTION` can be enabled and `EMBED_ALLOWED_HOSTS` can be customized in the Worker variables.
 
-The Cron Trigger wakes every five minutes and performs synchronization only when the six-hour refresh interval has elapsed. A new deployment therefore begins its first scheduled synchronization within approximately five minutes without a visitor-triggered GitHub request.
+The deploy command starts the initial repository synchronization as soon as Wrangler publishes the Worker and waits briefly for its result. The Cron Trigger also checks every minute and performs synchronization only when the six-hour refresh interval has elapsed. If the deployment environment cannot determine the public Worker URL, the first read of a completely empty repository cache starts the same one-time bootstrap as a fallback. All later updates remain schedule-driven.
 
 ### One-click Linux installation
 

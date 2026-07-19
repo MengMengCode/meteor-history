@@ -10,6 +10,10 @@ export async function runScheduledSync(env, { force = false } = {}) {
   const config = await workerConfig(env);
   const cache = new KvCache(env.METEOR_HISTORY_DATA, config.cacheTtlMs);
   const previous = await cache.getSyncState();
+  const lastStarted = new Date(previous?.lastStartedAt || 0).getTime();
+  if (!force && previous?.running && Number.isFinite(lastStarted) && Date.now() - lastStarted < 15 * 60_000) {
+    return previous;
+  }
   const lastCompleted = new Date(previous?.lastCompletedAt || 0).getTime();
   if (!force && Number.isFinite(lastCompleted) && Date.now() - lastCompleted < config.refreshIntervalMs) {
     return previous;

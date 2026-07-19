@@ -33,7 +33,7 @@
     }
   ],
   "triggers": {
-    "crons": ["*/5 * * * *"]
+    "crons": ["* * * * *"]
   },
   "vars": {
     "PUBLIC_BASE_URL": "",

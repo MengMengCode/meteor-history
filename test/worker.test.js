@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { workerConfig } from '../worker/config.js';
+import { shouldStartBootstrap } from '../worker/bootstrap.js';
 import { KvCache } from '../worker/kv-cache.js';
 import { createWorkerSigner, hotlinkAllowed } from '../worker/security.js';
 
@@ -45,6 +46,28 @@ test('Cloudflare configuration disables hotlink protection without a public URL'
   assert.equal(config.embedHotlinkProtection, false);
 });
 
+test('Cloudflare configuration automatically trusts its public deployment host', async () => {
+  const config = await workerConfig({
+    GITHUB_TOKEN: 'token',
+    EMBED_SIGNING_KEY: 'x'.repeat(32),
+    PUBLIC_BASE_URL: 'https://cards.example.com',
+    EMBED_HOTLINK_PROTECTION: 'true',
+    EMBED_ALLOWED_HOSTS: 'github.com',
+  });
+  assert.equal(config.embedHotlinkProtection, true);
+  assert.deepEqual(config.embedAllowedHosts, ['github.com', 'cards.example.com']);
+
+  const fromPublicHost = new Request('https://project.account.workers.dev/api/embed/owner/repo.svg', {
+    headers: { referer: 'https://cards.example.com/' },
+  });
+  assert.equal(hotlinkAllowed(fromPublicHost, config.embedAllowedHosts, true), true);
+
+  const sameWorkerHost = new Request('https://project.account.workers.dev/api/embed/owner/repo.svg', {
+    headers: { referer: 'https://project.account.workers.dev/' },
+  });
+  assert.equal(hotlinkAllowed(sameWorkerHost, config.embedAllowedHosts, true), true);
+});
+
 test('Cloudflare signer and Referer protection match Worker embed URLs', async () => {
   const signer = createWorkerSigner('x'.repeat(32));
   const signature = await signer.sign('Owner', 'Repo');
@@ -56,4 +79,12 @@ test('Cloudflare signer and Referer protection match Worker embed URLs', async (
   });
   assert.equal(hotlinkAllowed(request, ['github.com'], true), true);
   assert.equal(hotlinkAllowed(new Request(request.url, { headers: { referer: 'https://evil.example/page' } }), ['github.com'], true), false);
+});
+
+test('Cloudflare bootstrap sync runs only while the KV cache is completely empty', () => {
+  assert.equal(shouldStartBootstrap(null, null), true);
+  assert.equal(shouldStartBootstrap(null, { phase: 'waiting-for-scheduled-sync' }), true);
+  assert.equal(shouldStartBootstrap(null, { running: true, phase: 'repositories' }), false);
+  assert.equal(shouldStartBootstrap(null, { running: false, phase: 'idle', error: 'token error' }), false);
+  assert.equal(shouldStartBootstrap({ repositories: [] }, null), false);
 });

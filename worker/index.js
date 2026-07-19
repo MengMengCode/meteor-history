@@ -1,5 +1,6 @@
 import { GitHubError } from '../server/github.js';
 import { renderProfileSvg } from '../server/profile-svg.js';
+import { shouldStartBootstrap } from './bootstrap.js';
 import { KvCache } from './kv-cache.js';
 import { workerConfig } from './config.js';
 import { renderHistorySvg } from './history-svg.js';
@@ -63,7 +64,13 @@ async function getHistory(cache, config, owner, repo) {
   return { ...cached, source: 'cloudflare-kv' };
 }
 
-async function handleApi(request, env) {
+function startBootstrapSync(env, executionContext) {
+  if (!executionContext?.waitUntil) return false;
+  executionContext.waitUntil(runScheduledSync(env).catch((error) => console.error('Bootstrap sync failed:', error)));
+  return true;
+}
+
+async function handleApi(request, env, executionContext) {
   const url = new URL(request.url);
   const { config, cache, signer } = await context(env);
   const imageRequest = url.pathname.startsWith('/api/embed/') || url.pathname.startsWith('/api/profile/');
@@ -86,6 +93,10 @@ async function handleApi(request, env) {
 
   if (url.pathname === '/api/repositories') {
     const cached = await cache.getRepositories();
+    let sync = await cache.getSyncState();
+    if (shouldStartBootstrap(cached, sync) && startBootstrapSync(env, executionContext)) {
+      sync = { running: true, phase: 'bootstrap', lastStartedAt: new Date().toISOString() };
+    }
     const repositories = (cached?.repositories || []).filter((repository) => config.includePrivateRepositories || !repository.private);
     const profile = cached?.profile || null;
     const owner = profile?.login || repositories[0]?.owner || null;
@@ -95,7 +106,7 @@ async function handleApi(request, env) {
       owner,
       embedUrl: `${baseUrl}/api/profile/${encodeURIComponent(owner)}.svg${signature ? `?sig=${encodeURIComponent(signature)}` : ''}`,
     } : null;
-    return json({ repositories, profile, profileCard, fetchedAt: cached?.fetchedAt || null, sync: await cache.getSyncState() });
+    return json({ repositories, profile, profileCard, fetchedAt: cached?.fetchedAt || null, sync });
   }
 
   const historyMatch = url.pathname.match(/^\/api\/history\/([^/]+)\/([^/]+)$/);
@@ -151,10 +162,10 @@ async function handleApi(request, env) {
   return json({ error: 'Not found', code: 'NOT_FOUND' }, 404);
 }
 
-async function fetchHandler(request, env) {
+async function fetchHandler(request, env, executionContext) {
   try {
     const url = new URL(request.url);
-    if (url.pathname.startsWith('/api/')) return await handleApi(request, env);
+    if (url.pathname.startsWith('/api/')) return await handleApi(request, env, executionContext);
     return env.ASSETS.fetch(request);
   } catch (error) {
     const operational = error instanceof GitHubError;

@@ -20,6 +20,8 @@ async function secret(value) {
 export async function workerConfig(env) {
   const configuredBaseUrl = String(env.PUBLIC_BASE_URL || '').replace(/\/$/, '');
   const publicBaseUrl = /^https:\/\/[^/]+$/.test(configuredBaseUrl) ? configuredBaseUrl : '';
+  const configuredHosts = list(env.EMBED_ALLOWED_HOSTS || 'github.com,*.githubusercontent.com,*.github.io');
+  const publicHost = publicBaseUrl ? new URL(publicBaseUrl).hostname.toLowerCase() : '';
   return {
     token: await secret(env.GITHUB_TOKEN),
     embedSigningKey: await secret(env.EMBED_SIGNING_KEY),
@@ -29,6 +31,6 @@ export async function workerConfig(env) {
     publicBaseUrl,
     includePrivateRepositories: enabled(env.INCLUDE_PRIVATE_REPOSITORIES),
     embedHotlinkProtection: Boolean(publicBaseUrl) && enabled(env.EMBED_HOTLINK_PROTECTION),
-    embedAllowedHosts: list(env.EMBED_ALLOWED_HOSTS || 'github.com,*.githubusercontent.com,*.github.io'),
+    embedAllowedHosts: [...new Set([...configuredHosts, publicHost].filter(Boolean))],
   };
 }
